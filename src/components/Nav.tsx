@@ -80,7 +80,10 @@ export function Intro({ onDone }: { onDone: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
   const [gone, setGone] = useState(false)
   useEffect(() => {
-    const el = ref.current!
+    const el = ref.current
+    // Fast Refresh may rerun this effect after the one-time curtain has unmounted.
+    if (!el) return
+    let cancelled = false
     if (reducedMotion) {
       setGone(true)
       onDone()
@@ -90,11 +93,11 @@ export function Intro({ onDone }: { onDone: () => void }) {
     const word = el.querySelectorAll('.intro-word span')
     const bar = el.querySelector('.intro-bar i')
     const tl = gsap.timeline({ paused: true })
-    tl.from(word, { yPercent: 110, stagger: 0.035, duration: 0.9, ease: 'expo.out' })
-      .to(bar, { scaleX: 1, duration: 1.1, ease: 'power3.inOut' }, 0.1)
+    tl.from(word, { yPercent: 110, stagger: 0.035, duration: 0.45, ease: 'expo.out' })
+      .to(bar, { scaleX: 1, duration: 0.7, ease: 'power3.inOut' }, 0.1)
       .add('ready')
-      .to(word, { yPercent: -110, stagger: 0.02, duration: 0.6, ease: 'power3.in' }, 'ready+=0.15')
-      .to(el, { clipPath: 'inset(0 0 100% 0)', duration: 1, ease: 'expo.inOut' }, '-=0.25')
+      .to(word, { yPercent: -110, stagger: 0.02, duration: 0.4, ease: 'power3.in' }, 'ready+=0.15')
+      .to(el, { clipPath: 'inset(0 0 100% 0)', duration: 0.85, ease: 'expo.inOut' }, '-=0.25')
       .add(() => {
         lenis?.start()
         onDone()
@@ -102,9 +105,11 @@ export function Intro({ onDone }: { onDone: () => void }) {
       .add(() => setGone(true))
     gsap.set(el, { clipPath: 'inset(0 0 0% 0)' })
     const fonts = Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 2500))])
-    tl.tweenTo('ready').then(() => fonts.then(() => tl.play()))
+    tl.tweenTo('ready').then(() => fonts.then(() => { if (!cancelled) tl.play() }))
     return () => {
+      cancelled = true
       tl.kill()
+      lenis?.start()
     }
   }, [onDone])
   if (gone) return null

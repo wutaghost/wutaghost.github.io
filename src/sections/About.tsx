@@ -1,40 +1,14 @@
 import { useLayoutEffect, useRef } from 'react'
 import { profile } from '../data/profile'
 import { P, T, useI18n } from '../lib/i18n'
-import { gsap } from '../lib/smooth'
-
-/** Paragraph whose words (or CJK characters) ink in as you scroll. */
-function InkText({ text }: { text: string }) {
-  const ref = useRef<HTMLParagraphElement>(null)
-  const { lang } = useI18n()
-  const tokens = lang === 'zh' ? [...text] : text.split(/(\s+)/)
-  useLayoutEffect(() => {
-    const ctx = gsap.context(() => {
-      gsap.fromTo(
-        ref.current!.querySelectorAll('.ink'),
-        { opacity: 0.14 },
-        {
-          opacity: 1,
-          stagger: 0.05,
-          ease: 'none',
-          scrollTrigger: { trigger: ref.current, start: 'top 80%', end: 'bottom 45%', scrub: true },
-        },
-      )
-    }, ref)
-    return () => ctx.revert()
-  }, [text])
-  return (
-    <p className="about-body" ref={ref}>
-      {tokens.map((w, i) => (/^\s+$/.test(w) ? w : <span key={i} className="ink">{w}</span>))}
-    </p>
-  )
-}
+import { gsap, reducedMotion } from '../lib/smooth'
 
 export function About() {
   const { t } = useI18n()
   const lineRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
+    if (reducedMotion) return
     const ctx = gsap.context(() => {
       gsap.fromTo(
         '.tl-line i',
@@ -43,10 +17,10 @@ export function About() {
       )
       gsap.utils.toArray<HTMLElement>('.tl-item').forEach((el) => {
         gsap.from(el.querySelectorAll('.tl-anim'), {
-          y: 24,
+          y: 14,
           autoAlpha: 0,
           stagger: 0.08,
-          duration: 1,
+          duration: 0.65,
           ease: 'expo.out',
           scrollTrigger: { trigger: el, start: 'top 72%', toggleClass: { targets: el, className: 'is-on' } },
         })
@@ -80,7 +54,7 @@ export function About() {
           <span>2023 — 2027</span>
           <span>{profile.research.map((r) => r.key).join(' / ')}</span>
         </aside>
-        <InkText text={t('about.body')} />
+        <p className="about-body">{t('about.body')}</p>
       </div>
 
       <div className="tl">

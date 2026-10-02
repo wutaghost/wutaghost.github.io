@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { projects, upcomingSlots } from '../data/projects'
 import { P, T, useI18n } from '../lib/i18n'
-import { gsap, isTouch } from '../lib/smooth'
+import { gsap, isTouch, reducedMotion } from '../lib/smooth'
 import { unfold } from '../lib/transition'
 import { Cover } from '../components/Cover'
 import { GhostMark } from '../components/ui'
@@ -13,28 +13,29 @@ export function Work() {
 
   // preview sheet follows the pointer with inertia and leans into motion
   useEffect(() => {
-    if (isTouch) return
+    if (isTouch || reducedMotion || active === null) return
     const el = previewRef.current!
-    const xTo = gsap.quickTo(el, 'x', { duration: 0.7, ease: 'power3' })
-    const yTo = gsap.quickTo(el, 'y', { duration: 0.7, ease: 'power3' })
-    const rTo = gsap.quickTo(el, 'rotation', { duration: 0.9, ease: 'power3' })
+    const xTo = gsap.quickTo(el, 'x', { duration: 0.4, ease: 'power3' })
+    const yTo = gsap.quickTo(el, 'y', { duration: 0.4, ease: 'power3' })
+    const rTo = gsap.quickTo(el, 'rotation', { duration: 0.5, ease: 'power3' })
     let lastX = 0
     const move = (e: PointerEvent) => {
       xTo(e.clientX)
       yTo(e.clientY)
-      rTo(gsap.utils.clamp(-9, 9, (e.clientX - lastX) * 0.6))
+      rTo(gsap.utils.clamp(-3, 3, (e.clientX - lastX) * 0.6))
       lastX = e.clientX
     }
     addEventListener('pointermove', move)
     return () => removeEventListener('pointermove', move)
-  }, [])
+  }, [active])
 
   useEffect(() => {
+    if (reducedMotion) return
     gsap.to(previewRef.current, {
-      scale: active === null ? 0.6 : 1,
+      scale: active === null ? 0.96 : 1,
       autoAlpha: active === null ? 0 : 1,
-      rotationX: active === null ? 40 : 0,
-      duration: 0.6,
+      rotationX: active === null ? 4 : 0,
+      duration: reducedMotion ? 0 : 0.4,
       ease: 'expo.out',
     })
   }, [active])
@@ -42,7 +43,7 @@ export function Work() {
   const open = (i: number) => {
     const p = projects[i]
     // on touch there is no floating preview; unfold from the row itself
-    const from = isTouch
+    const from = isTouch || reducedMotion
       ? document.querySelector(`[data-row="${i}"] .row-cover`)
       : previewRef.current?.querySelector(`.preview-slide:nth-child(${i + 1}) .cover`)
     unfold((from as HTMLElement) ?? null, `/work/${p.slug}`)
@@ -72,7 +73,10 @@ export function Work() {
             <a
               href={`/work/${p.slug}`}
               data-cursor="view"
-              onPointerEnter={() => setActive(i)}
+              onPointerEnter={(e) => {
+                if (active === null && !isTouch && !reducedMotion) gsap.set(previewRef.current, { x: e.clientX, y: e.clientY })
+                setActive(i)
+              }}
               onClick={(e) => {
                 e.preventDefault()
                 open(i)
@@ -91,7 +95,7 @@ export function Work() {
               <span className="row-venue mono">{p.venue}</span>
               <span className="row-year mono muted">{p.year}</span>
               <span className="row-arrow">→</span>
-              {isTouch && <Cover project={p} className="row-cover" />}
+              {(isTouch || reducedMotion) && <Cover project={p} className="row-cover" />}
             </a>
           </li>
         ))}

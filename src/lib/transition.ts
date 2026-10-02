@@ -58,7 +58,7 @@ export function unfold(from: HTMLElement | null, to: string, coverVh = 0.78) {
       busy = false
     },
   })
-  tl.to(backdrop, { opacity: 1, duration: 0.6, ease: 'power2.out' }, 0)
+  tl.to(backdrop, { opacity: 1, duration: 0.35, ease: 'power2.out' }, 0)
     .to(
       clone,
       {
@@ -68,14 +68,14 @@ export function unfold(from: HTMLElement | null, to: string, coverVh = 0.78) {
         height: innerHeight * coverVh,
         rotation: 0,
         borderRadius: 0,
-        duration: 1,
+        duration: 0.85,
         ease: 'expo.inOut',
       },
       0,
     )
     .add(() => go(to))
-    .to(backdrop, { opacity: 0, duration: 0.5, ease: 'power2.out' }, '+=0.05')
-    .to(clone, { opacity: 0, duration: 0.6, ease: 'power2.out', onComplete: () => (clone.remove(), backdrop.remove()) }, '<0.1')
+    .to(backdrop, { opacity: 0, duration: 0.3, ease: 'power2.out' }, '+=0.02')
+    .to(clone, { opacity: 0, duration: 0.35, ease: 'power2.out', onComplete: () => (clone.remove(), backdrop.remove()) }, '<0.1')
 }
 
 export type TurnLabel = { kicker: string; num: string; title: string }
@@ -111,14 +111,14 @@ export function pageTurn(to: string, label: TurnLabel) {
 
   gsap
     .timeline({ onComplete: () => ((busy = false), stage.remove()) })
-    .to(page, { rotationY: 0, duration: 0.95, ease: 'power3.inOut' })
-    .to(shade, { opacity: 0, duration: 0.95, ease: 'power3.inOut' }, 0)
-    .to(inner.children, { y: 0, opacity: 1, stagger: 0.07, duration: 0.6, ease: 'power3.out' }, 0.45)
-    .add(() => go(to), '+=0.15')
+    .to(page, { rotationY: 0, duration: 0.55, ease: 'power3.inOut' })
+    .to(shade, { opacity: 0, duration: 0.55, ease: 'power3.inOut' }, 0)
+    .to(inner.children, { y: 0, opacity: 1, stagger: 0.07, duration: 0.35, ease: 'power3.out' }, 0.2)
+    .add(() => go(to), '+=0.04')
     .set(page, { transformOrigin: '0% 50%' })
-    .to(inner.children, { y: -30, opacity: 0, stagger: 0.04, duration: 0.35, ease: 'power2.in' }, '+=0.45')
-    .to(page, { rotationY: -100, duration: 1, ease: 'power3.inOut' }, '<0.15')
-    .to(shade, { opacity: 0.6, duration: 1, ease: 'power3.inOut' }, '<')
+    .to(inner.children, { y: -30, opacity: 0, stagger: 0.04, duration: 0.35, ease: 'power2.in' }, '+=0.08')
+    .to(page, { rotationY: -100, duration: 0.6, ease: 'power3.inOut' }, '<0.06')
+    .to(shade, { opacity: 0.6, duration: 0.6, ease: 'power3.inOut' }, '<')
 }
 
 export const isBusy = () => busy

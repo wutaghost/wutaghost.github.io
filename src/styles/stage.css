@@ -133,7 +133,7 @@
   visibility: hidden;
 }
 
-@media (max-width: 1099px), (max-height: 739px) {
+@media (max-width: 1099px), (max-height: 679px) {
   .hero-meta {
     top: auto;
     bottom: 31vw;

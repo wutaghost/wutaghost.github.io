@@ -1,16 +1,15 @@
 /* Editorial finish: shared lighting, quiet surfaces and deliberate motion. */
-:root { --paper: #f2efe7; --card: #fcfaf5; --ink: #24231f; --red: #b94b35; --muted: #716d64; }
+:root { --paper: #f2efe7; --card: #fcfaf5; --ink: #24231f; --red: #b94b35; --muted: #716d64; --motion-fast: 180ms; --motion-surface: 460ms; }
 a:focus-visible, button:focus-visible { outline: 2px solid var(--red); outline-offset: 6px; }
 html[lang='zh-CN'] .mono { letter-spacing: 0.06em; }
 .reading-progress { position: fixed; z-index: 130; top: 0; left: 0; width: 100%; height: 2px; background: var(--red); transform: scaleX(0); transform-origin: left; pointer-events: none; }
 .hero-word { font-size: 20.8vw; bottom: 0.025em; letter-spacing: -0.045em; }
-.hero-light { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 51% 32%, #fffdf7 0%, #fffdf755 30%, transparent 66%), linear-gradient(115deg, #ded8ca40, transparent 42%); }
-.hero-orbit { position: absolute; width: min(47vw, 640px); aspect-ratio: 1; left: 50%; top: 43%; transform: translate(-50%, -50%); border: 1px solid #93857320; border-radius: 50%; pointer-events: none; }
-.hero-orbit::before { content: ''; position: absolute; inset: 12%; border: 1px solid #93857312; border-radius: 50%; }
-.hero-orbit i { position: absolute; inset: -1px; animation: orbit 48s linear infinite; }
-.hero-orbit i::after { content: ''; position: absolute; left: 50%; top: -2px; width: 4px; height: 4px; border-radius: 50%; background: #b94b3580; }
-.hero-orbit i + i { animation-delay: -24s; }
-@keyframes orbit { to { transform: rotate(360deg); } }
+.hero-light { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 64% 27%, #fffdf8 0%, #fffdf855 28%, transparent 65%), linear-gradient(115deg, #d9d3c730, transparent 50%); }
+.paper-canvas[hidden] { display: none; }
+.grain { display: none; }
+/* The foreground stays crisp; the nav scrim never blurs an entire band of the sculpture. */
+.nav::before { inset: 0 0 -10px; backdrop-filter: none; -webkit-backdrop-filter: none; background: linear-gradient(#f2efe7d9, #f2efe700); }
+body.nav-dark .nav::before { background: linear-gradient(#24231fdb, #24231f00); }
 .hero-edition { position: absolute; top: 104px; left: var(--pad); right: var(--pad); display: flex; justify-content: space-between; color: var(--muted); font-size: 9px; padding-top: 13px; border-top: 1px solid var(--line); }
 .hero-meta { top: 27%; gap: 20px; }
 .hero-name .zh { font-weight: 400; letter-spacing: 0.16em; }
@@ -48,19 +47,19 @@ html[lang='zh-CN'] .mono { letter-spacing: 0.06em; }
 .footer { position: relative; background: radial-gradient(ellipse at 85% 100%, #49423565, transparent 60%), #24231f; }
 .talk { font-weight: 400; }
 /* Short windows keep the same art direction without pinning the stage. */
-@media (max-height: 739px) and (min-width: 761px) {
+@media (max-height: 679px) and (min-width: 761px) {
   .hero-edition { top: 83px; }
   .hero-meta { top: 25%; bottom: auto; }
   .hero-fig { top: 26%; }
 }
-@media (min-width: 1100px) and (min-height: 740px) {
+@media (min-width: 1100px) and (min-height: 680px) {
   .cell-profile .card-body { padding-top: 44px; padding-bottom: 16px; }
   .cell-profile .card-main { display: grid; grid-template-columns: 1fr auto; gap: 6px 20px; align-items: baseline; }
   .profile-bio { grid-column: 1 / -1; max-width: 40em; }
   .cell-profile .card-top { top: 18px; }
   .profile-name { flex-wrap: wrap; gap: 8px; }
 }
-@media (max-width: 1099px), (max-height: 739px) {
+@media (max-width: 1099px), (max-height: 679px) {
   .bento-section { padding-top: 64px; }
   .bento-section .bento { grid-auto-rows: minmax(150px, auto); gap: 18px; }
   .bento-section .cell-profile { min-height: 290px; }
@@ -70,7 +69,6 @@ html[lang='zh-CN'] .mono { letter-spacing: 0.06em; }
 @media (max-width: 760px) {
   .hero-edition { top: 88px; font-size: 8px; }
   .hero-edition span:last-child { display: none; }
-  .hero-orbit { width: 76vw; top: 40%; }
   .hero-meta { top: auto; bottom: 28vw; gap: 10px; }
   .hero-meta p { font-size: 10px; }
   .hero-name { display: flex; align-items: baseline; gap: 12px; }
@@ -82,7 +80,6 @@ html[lang='zh-CN'] .mono { letter-spacing: 0.06em; }
   .sec-head { gap: 20px; flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hero-orbit i { animation: none; }
   .reading-progress { display: none; }
   .card, .card:hover { transform: none; }
 }
@@ -93,7 +90,28 @@ html[lang='zh-CN'] .mono { letter-spacing: 0.06em; }
   .badge { white-space: normal; line-height: 1.5; }
 }
 /* Fit the fixed journal spread on smaller laptops, including English copy. */
-@media (min-width: 1100px) and (min-height: 740px) and (max-height: 820px) {
+
+
+
+/* Compact laptops retain the complete unfold without compressing the reading surface. */
+
+@media (hover: none) {
+  .card-featured:hover { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-featured:hover { transform: none; }
+}
+.u-link::after, .chip, .email-text, .row-arrow { transition-duration: var(--motion-fast); }
+.lang-pill { transition-duration: 350ms; }
+.live-dot { animation: none; box-shadow: none; }
+.blink { animation: none; }
+.about-body .ink { opacity: 1; }
+.preview-slide { border-radius: 3px; box-shadow: 0 2px 2px #30271915, 0 20px 40px -18px #30271944; }
+.intro { background: var(--paper); color: var(--ink); }
+.intro-bar { background: var(--line); }
+.intro-bar i { background: var(--red); }
+
+@media (min-width: 1100px) and (min-height: 680px) and (max-height: 820px) {
   .card-body { --cp: 18px; padding: 42px 18px 18px; }
   .featured-text { --cp: 22px; padding: 50px 22px 22px; }
   .featured-text .card-main { gap: 10px; }
@@ -108,10 +126,24 @@ html[lang='zh-CN'] .mono { letter-spacing: 0.06em; }
   .clock-face { width: 42px; }
   .clock .mono { font-size: 9px; }
   .clock-digital { font-size: 30px; }
-}
-@media (min-width: 1100px) and (min-height: 740px) and (max-height: 820px) {
   .card-contact .card-main { gap: 9px; }
   .card-contact .chip { padding: 5px 7px; font-size: 9px; }
   .card-contact .links { gap: 4px; }
   .card-contact .email-text { font-size: 12px; }
+  .bento-wrap { top: 80px; bottom: 24px; }
+  .bento { grid-template-rows: 0.72fr 1.42fr 0.96fr; }
+  .cell-profile .card-body { padding-top: 38px; padding-bottom: 10px; }
+  .profile-id { font-size: 36px; }
+  .featured-title { font-size: clamp(23px, 3.6vh, 29px); }
+  .featured-authors { font-size: 11px; }
+  .featured-text { padding-top: 42px; padding-bottom: 16px; }
+  .featured-text .card-main { gap: 9px; }
+  .research-desc { font-size: 11px; }
+  .now-text { font-size: 17px; }
 }
+
+/* Original spread surfaces; hidden until the sheet hands off to the DOM. */
+.is-staged .bento { visibility: hidden; }
+.is-staged .bento-wrap { z-index: 2; }
+.ink-trail { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; mix-blend-mode: multiply; }
+@media (hover: none), (prefers-reduced-motion: reduce) { .ink-trail { display: none; } }

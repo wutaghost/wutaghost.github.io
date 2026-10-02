@@ -43,13 +43,13 @@ export function Cursor() {
 
 /* ---------------- magnetic ---------------- */
 
-export function Magnetic({ children, strength = 0.35, className }: { children: ReactNode; strength?: number; className?: string }) {
+export function Magnetic({ children, strength = 0.16, className }: { children: ReactNode; strength?: number; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null)
   useEffect(() => {
     if (isTouch || reducedMotion) return
     const el = ref.current!
-    const xTo = gsap.quickTo(el, 'x', { duration: 0.6, ease: 'elastic.out(1, 0.4)' })
-    const yTo = gsap.quickTo(el, 'y', { duration: 0.6, ease: 'elastic.out(1, 0.4)' })
+    const xTo = gsap.quickTo(el, 'x', { duration: 0.38, ease: 'power3.out' })
+    const yTo = gsap.quickTo(el, 'y', { duration: 0.38, ease: 'power3.out' })
     const move = (e: PointerEvent) => {
       const r = el.getBoundingClientRect()
       xTo((e.clientX - (r.left + r.width / 2)) * strength)
@@ -76,10 +76,10 @@ export function Magnetic({ children, strength = 0.35, className }: { children: R
 /* ---------------- tilt ---------------- */
 
 /** Sets --rx/--ry/--mx/--my on the element for a 3D tilt + sheen. */
-export function useTilt<T extends HTMLElement>(max = 3) {
+export function useTilt<T extends HTMLElement>(max = 1.8, enabled = true) {
   const ref = useRef<T>(null)
   useEffect(() => {
-    if (isTouch || reducedMotion) return
+    if (!enabled || isTouch || reducedMotion) return
     const el = ref.current!
     let raf = 0
     const move = (e: PointerEvent) => {
@@ -106,7 +106,7 @@ export function useTilt<T extends HTMLElement>(max = 3) {
       el.removeEventListener('pointermove', move)
       el.removeEventListener('pointerleave', out)
     }
-  }, [max])
+  }, [max, enabled])
   return ref
 }
 

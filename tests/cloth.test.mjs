@@ -4,7 +4,7 @@ import test from 'node:test'
 import { Cloth } from '../src/three/cloth.ts'
 
 // Exercise both the full and low-power mesh under sustained, reversing input.
-for (const [nx, ny] of [[26, 32], [17, 21]]) {
+for (const [nx, ny] of [[24, 30], [18, 23]]) {
   test(`wind preserves a readable face and bounded cloth (${nx} × ${ny})`, () => {
     const cloth = new Cloth(nx, ny, 2.4, 3.1)
     const target = new Float32Array(3)
@@ -12,7 +12,7 @@ for (const [nx, ny] of [[26, 32], [17, 21]]) {
     let maxDepth = 0
     for (let frame = 0; frame < 1200; frame++) {
       const sign = Math.sin(frame * 0.13)
-      Object.assign(cloth.gust, { x: sign * 2.2, y: -sign * 2.2, z: -0.56, px: sign, py: 0, r: 1.2 })
+      Object.assign(cloth.gust, { x: sign * 2.2, y: -sign * 2.2, z: -0.56, px: sign, py: 0, r: 0.67, active: 1 })
       if (frame % 90 === 0) cloth.poke(0, 0, 0.008)
       cloth.step(1 / 60, 0, null, false)
       assert.ok(cloth.pos.every(Number.isFinite))

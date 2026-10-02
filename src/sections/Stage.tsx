@@ -8,7 +8,7 @@ import { profile } from '../data/profile'
 import { setPageNo } from '../components/Nav'
 import { GhostMark } from '../components/ui'
 
-const stagedQuery = '(min-width: 1100px) and (min-height: 740px)'
+const stagedQuery = '(min-width: 1100px) and (min-height: 680px)'
 
 export function Stage({ ready }: { ready: boolean }) {
   const stageRef = useRef<HTMLElement>(null)
@@ -16,39 +16,54 @@ export function Stage({ ready }: { ready: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<PaperScene | null>(null)
-  const st = useRef<SceneState>({ flat: 0, cut: 0, rect: null })
-  const [staged] = useState(() => !reducedMotion && matchMedia(stagedQuery).matches)
+  const st = useRef<SceneState & { cards: number }>({ flat: 0, cut: 0, rect: null, cards: 0 })
+  const [fits, setFits] = useState(() => matchMedia(stagedQuery).matches)
   const [webgl, setWebgl] = useState(true)
+  const staged = fits && !reducedMotion && webgl
+
+  useEffect(() => {
+    const query = matchMedia(stagedQuery)
+    const update = () => setFits(query.matches)
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
   const { lang } = useI18n()
   const [mood, setMood] = useState<Expression>('calm')
 
   // ---- WebGL scene + render loop ----
   useEffect(() => {
+    if (!webgl) return
     let scene: PaperScene
     try {
-      scene = new PaperScene(canvasRef.current!, { lowPower: isTouch })
+      scene = new PaperScene(canvasRef.current!, { lowPower: isTouch || innerWidth < 760 })
     } catch {
       setWebgl(false)
       return
     }
     sceneRef.current = scene
     scene.onMood = setMood
+    setMood(scene.shown)
     let visible = true
     const io = new IntersectionObserver(([e]) => (visible = e.isIntersecting))
     io.observe(stageRef.current!)
 
+    const cells = [...(gridRef.current?.querySelectorAll<HTMLElement>('.cell') ?? [])]
+    let previousCards = -1
+    let renderedRest = false
     let raf = 0
     const loop = () => {
       raf = requestAnimationFrame(loop)
       const canvas = canvasRef.current
-      if (!canvas || !visible || document.hidden || getComputedStyle(canvas).visibility === 'hidden') return
+      if (!canvas || !visible || document.hidden) return
       const s = st.current
-      if (staged && gridRef.current) {
-        const g = gridRef.current.getBoundingClientRect()
-        const c = canvas.getBoundingClientRect()
-        s.rect = new DOMRect(g.left - c.left, g.top - c.top, g.width, g.height)
+      if (staged && s.cards !== previousCards) {
+        cells.forEach(cell => { cell.inert = s.cards < 1 })
+        previousCards = s.cards
       }
-      scene.frame(s, reducedMotion)
+      // Once the spread is DOM, stop paying for cloth physics and an empty WebGL frame.
+      const resting = s.cut >= 1 || reducedMotion
+      if (!resting || !renderedRest) scene.frame(s, reducedMotion)
+      renderedRest = resting
     }
     raf = requestAnimationFrame(loop)
 
@@ -57,55 +72,75 @@ export function Stage({ ready }: { ready: boolean }) {
       const c = canvasRef.current!.getBoundingClientRect()
       return [e.clientX - c.left, e.clientY - c.top] as const
     }
-    const move = (e: PointerEvent) => scene.pointer(...local(e))
+    const move = (e: PointerEvent) => { if (!reducedMotion && st.current.flat < 0.2) scene.pointer(...local(e)) }
+    const leave = () => scene.leave()
+    const lost = (event: Event) => { event.preventDefault(); setWebgl(false) }
     const down = (e: PointerEvent) => {
-      if (st.current.flat > 0.2) return
+      if (st.current.flat > 0.2 || reducedMotion || (e.target as Element).closest('a, button')) return
       scene.click(...local(e))
     }
+    pin.addEventListener('pointerleave', leave)
+    canvasRef.current!.addEventListener('webglcontextlost', lost)
     pin.addEventListener('pointermove', move)
     pin.addEventListener('pointerdown', down)
-    const ro = new ResizeObserver(() => scene.resize())
+    const ro = new ResizeObserver(() => { scene.resize(); renderedRest = false })
     ro.observe(canvasRef.current!)
     return () => {
       cancelAnimationFrame(raf)
       io.disconnect()
       ro.disconnect()
+      pin.removeEventListener('pointerleave', leave)
+      scene.canvas.removeEventListener('webglcontextlost', lost)
       pin.removeEventListener('pointermove', move)
       pin.removeEventListener('pointerdown', down)
       scene.dispose()
       sceneRef.current = null
     }
-  }, [staged])
+  }, [staged, webgl])
 
-  // ---- crease lines follow the real card layout (measured with gap = 0) ----
+  // Measure the uncut spread once per layout change, preserving the original handoff.
   useEffect(() => {
     if (!staged) return
     const grid = gridRef.current!
+    let disposed = false
     const measure = () => {
       const scene = sceneRef.current
-      if (!scene) return
+      if (disposed || !scene) return
+      const W = grid.clientWidth, H = grid.clientHeight
+      if (!W || !H) return
       const saved = grid.style.getPropertyValue('--gap')
       grid.style.setProperty('--gap', '0px')
-      const W = grid.clientWidth, H = grid.clientHeight
-      if (!W || !H) return grid.style.setProperty('--gap', saved)
-      const cells = [...grid.querySelectorAll<HTMLElement>('.cell')].map((c) => ({
-        x: c.offsetLeft / W,
-        y: c.offsetTop / H,
-        w: c.offsetWidth / W,
-        h: c.offsetHeight / H,
+      const cells = [...grid.querySelectorAll<HTMLElement>('.cell')].map(c => ({
+        x: c.offsetLeft / W, y: c.offsetTop / H, w: c.offsetWidth / W, h: c.offsetHeight / H,
       }))
-      grid.style.setProperty('--gap', saved)
+      if (saved) grid.style.setProperty('--gap', saved)
+      else grid.style.removeProperty('--gap')
       scene.setCreases(cells, W / H)
+      const g = grid.getBoundingClientRect(), c = canvasRef.current!.getBoundingClientRect()
+      st.current.rect = new DOMRect(g.left - c.left, g.top - c.top, g.width, g.height)
     }
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(grid)
     document.fonts.ready.then(measure)
-    return () => ro.disconnect()
+    ScrollTrigger.addEventListener('refresh', measure)
+    return () => {
+      disposed = true
+      ro.disconnect()
+      ScrollTrigger.removeEventListener('refresh', measure)
+    }
   }, [staged, lang])
+
+  useLayoutEffect(() => {
+    if (staged) gridRef.current?.querySelectorAll<HTMLElement>('.cell').forEach(cell => { cell.inert = true })
+  }, [staged])
 
   // ---- scroll choreography ----
   useLayoutEffect(() => {
+    st.current.flat = 0
+    st.current.cut = 0
+    st.current.cards = 0
+    if (!ready) return
     const ctx = gsap.context(() => {
       ScrollTrigger.create({
         trigger: stageRef.current,
@@ -138,12 +173,12 @@ export function Stage({ ready }: { ready: boolean }) {
       gsap.set(grid, { '--gap': '0px', '--radius': '0px', '--lift': 0, autoAlpha: 0 })
       gsap.set(reveals, { autoAlpha: 0, y: 18 })
 
-      const spread = cells.map((c) => {
+      const spread = cells.map((c, i) => {
         const gx = grid.clientWidth / 2, gy = grid.clientHeight / 2
         const dx = c.offsetLeft + c.offsetWidth / 2 - gx
         const dy = c.offsetTop + c.offsetHeight / 2 - gy
         const d = Math.hypot(dx, dy) || 1
-        return { x: (dx / d) * 26, y: (dy / d) * 20, r: gsap.utils.random(-2.4, 2.4) }
+        return { x: (dx / d) * 26, y: (dy / d) * 20, r: Math.sin(i * 2.4) * 2.4 }
       })
 
       const tl = gsap.timeline({
@@ -153,7 +188,9 @@ export function Stage({ ready }: { ready: boolean }) {
           pin: pinRef.current,
           start: 'top top',
           end: '+=210%',
-          scrub: 0.9,
+          scrub: 0.65,
+          refreshPriority: 1,
+          invalidateOnRefresh: true,
         },
       })
       tl.to(st.current, { flat: 1, duration: 0.42, ease: 'power2.inOut' }, 0)
@@ -166,19 +203,22 @@ export function Stage({ ready }: { ready: boolean }) {
         .to(cells, { x: (i) => spread[i].x, y: (i) => spread[i].y, rotation: (i) => spread[i].r, duration: 0.09, ease: 'power2.out' }, 0.6)
         .to(cells, { x: 0, y: 0, rotation: 0, duration: 0.13, ease: 'power2.inOut' }, 0.69)
         .to(reveals, { autoAlpha: 1, y: 0, duration: 0.12, stagger: 0.003, ease: 'power2.out' }, 0.72)
+        .set(st.current, { cards: 1 }, 0.86)
         .to({}, { duration: 0.1 })
     }, stageRef)
-    return () => ctx.revert()
-  }, [staged])
+    // The intro installs the pin after Home's section triggers: remeasure them together.
+    const refresh = requestAnimationFrame(() => ScrollTrigger.refresh())
+    return () => { cancelAnimationFrame(refresh); ctx.revert() }
+  }, [staged, ready])
 
   // ---- intro letters ----
   useEffect(() => {
     if (!ready || reducedMotion) return
     const ctx = gsap.context(() => {
-      gsap.fromTo('.hero-word span', { yPercent: 105 }, { yPercent: 0, stagger: 0.045, duration: 1.4, ease: 'expo.out' })
-      gsap.fromTo('.hero-meta > *', { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, stagger: 0.06, duration: 1, delay: 0.35, ease: 'expo.out' })
-      gsap.fromTo('.hero-edition', { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 1.2, delay: 0.7 })
-      gsap.fromTo(canvasRef.current, { autoAlpha: 0, y: 60 }, { autoAlpha: 1, y: 0, duration: 1.6, ease: 'expo.out' })
+      gsap.fromTo('.hero-word .line-mask > span', { yPercent: 104 }, { yPercent: 0, stagger: 0.018, duration: 1.05, delay: 0.16, ease: 'power3.out' })
+      gsap.fromTo('.hero-meta > *', { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, stagger: 0.045, duration: 0.7, delay: 0.5, ease: 'expo.out' })
+      gsap.fromTo('.hero-edition', { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.65, delay: 0.7 })
+      gsap.fromTo(canvasRef.current, { opacity: 0 }, { opacity: 1, duration: 1.1, ease: 'power2.out' })
     }, stageRef)
     return () => ctx.revert()
   }, [ready])
@@ -188,7 +228,6 @@ export function Stage({ ready }: { ready: boolean }) {
       <section className={`stage ${staged ? 'is-staged' : ''}`} ref={stageRef} id="top">
         <div className="stage-pin" ref={pinRef}>
           <div className="hero-light hero-type" aria-hidden />
-          <div className="hero-orbit hero-type" aria-hidden><i /><i /></div>
           <div className="hero-edition hero-type mono" aria-hidden>
             <span>Independent inquiry</span><span>Research · Code · Form</span>
           </div>
@@ -202,11 +241,9 @@ export function Stage({ ready }: { ready: boolean }) {
             </span>
           </h1>
 
-          {webgl ? (
-            <canvas className="paper-canvas" ref={canvasRef} aria-label="A floating paper ghost" />
-          ) : (
-            <GhostMark className="paper-fallback" />
-          )}
+          <canvas className="paper-canvas" ref={canvasRef} aria-label="A floating paper ghost" hidden={!webgl} />
+          {!webgl && <GhostMark className="paper-fallback" />}
+
 
           <div className="hero-meta hero-type">
             <div className="hero-name">

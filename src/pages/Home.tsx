@@ -20,11 +20,11 @@ export function Home({ ready }: { ready: boolean }) {
       gsap.utils.toArray<HTMLElement>('.sec-head').forEach((h) => {
         gsap.from(h.querySelectorAll('.split'), {
           yPercent: 110,
-          duration: 1.3,
+          duration: 0.9,
           ease: 'expo.out',
           scrollTrigger: { trigger: h, start: 'top 85%' },
         })
-        gsap.from(h, { '--rule': 0, duration: 1.4, ease: 'expo.inOut', scrollTrigger: { trigger: h, start: 'top 85%' } })
+        gsap.from(h, { '--rule': 0, duration: 0.9, ease: 'expo.inOut', scrollTrigger: { trigger: h, start: 'top 85%' } })
       })
       // journal page counter
       ;(
@@ -51,13 +51,13 @@ export function Home({ ready }: { ready: boolean }) {
         start: 'top 90%',
         once: true,
         onEnter: (els) =>
-          gsap.from(els, { y: 44, rotationX: 5, autoAlpha: 0, stagger: 0.09, duration: 1.2, ease: 'power3.out' }),
+          gsap.from(els, { y: 22, autoAlpha: 0, stagger: 0.05, duration: 0.7, ease: 'power3.out' }),
       })
       gsap.from('.row', {
-        y: 30,
+        y: 16,
         autoAlpha: 0,
         stagger: 0.08,
-        duration: 1,
+        duration: 0.7,
         ease: 'expo.out',
         scrollTrigger: { trigger: '.rows', start: 'top 85%' },
       })

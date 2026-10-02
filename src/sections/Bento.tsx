@@ -7,9 +7,10 @@ import { copyText, GhostMark, Magnetic, toast, useTilt } from '../components/ui'
 import { scrollTo } from '../lib/smooth'
 import { unfold } from '../lib/transition'
 import { Cover } from '../components/Cover'
+import { InkTrail } from '../components/InkTrail'
 
 function Card({ area, children, className = '', cursor }: { area: string; children: ReactNode; className?: string; cursor?: string }) {
-  const ref = useTilt<HTMLDivElement>()
+  const ref = useTilt<HTMLDivElement>(3)
   return (
     <div className={`cell cell-${area}`}>
       <div className={`card ${className}`} ref={ref} data-cursor={cursor}>
@@ -19,6 +20,7 @@ function Card({ area, children, className = '', cursor }: { area: string; childr
         <span className="crop br" />
         <div className="card-body">{children}</div>
         <span className="sheen" />
+        <InkTrail hostRef={ref} />
       </div>
     </div>
   )

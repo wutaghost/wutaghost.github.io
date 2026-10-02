@@ -45,14 +45,14 @@ export class Face {
   private g: CanvasRenderingContext2D
 
   constructor() {
-    this.canvas.width = FACE_W
-    this.canvas.height = FACE_H
+    this.canvas.width = FACE_W / 2
+    this.canvas.height = FACE_H / 2
     this.g = this.canvas.getContext('2d')!
   }
 
   draw(e: Expression, f: FaceInput) {
     const g = this.g
-    g.setTransform(1, 0, 0, 1, 0, 0)
+    g.setTransform(0.5, 0, 0, 0.5, 0, 0)
     g.clearRect(0, 0, FACE_W, FACE_H)
 
     // spring "pop" when the mood changes + slow breathing

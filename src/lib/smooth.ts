@@ -7,7 +7,7 @@ gsap.registerPlugin(ScrollTrigger)
 export const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
 export const isTouch = matchMedia('(hover: none), (pointer: coarse)').matches
 
-export const lenis: Lenis | null = reducedMotion ? null : new Lenis({ lerp: 0.09, wheelMultiplier: 0.9 })
+export const lenis: Lenis | null = reducedMotion ? null : new Lenis({ lerp: 0.14, wheelMultiplier: 1 })
 
 if (lenis) {
   if (import.meta.env.DEV) (window as unknown as { __lenis: Lenis }).__lenis = lenis
@@ -22,7 +22,7 @@ window.scrollTo(0, 0)
 export function scrollTo(target: string | number, immediate = false) {
   // dimensions may be stale right after a route change
   lenis?.resize()
-  if (lenis) lenis.scrollTo(target, { immediate, force: true, duration: 1.4, offset: typeof target === 'string' ? -40 : 0 })
+  if (lenis) lenis.scrollTo(target, { immediate, force: true, duration: 1.0, offset: typeof target === 'string' ? -40 : 0 })
   else if (typeof target === 'number') window.scrollTo(0, target)
   else document.querySelector(target)?.scrollIntoView()
 }

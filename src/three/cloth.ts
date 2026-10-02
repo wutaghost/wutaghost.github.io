@@ -1,4 +1,4 @@
-/** Verlet cloth for the floating paper ghost. Pure math, no rendering. */
+/** Sculpted paper shell with fixed-step Verlet dynamics. Pure math, no rendering. */
 
 export type Rect = { x: number; y: number; w: number; h: number } // world units, (x,y) = top-left
 
@@ -14,6 +14,10 @@ export class Cloth {
   prev: Float32Array
   /** 0..1 how strongly each particle follows its float target (top = head) */
   anchor: Float32Array
+  /** Rest lengths come from the sculpted surface, not from a flat rectangular lattice. */
+  constraints: { a: number; b: number; rest: number; du: number; dv: number; stiffness: number }[] = []
+  restLengths = new Float32Array(0)
+  restKey = ''
   W: number
   H: number
   cx = 0
@@ -22,7 +26,7 @@ export class Cloth {
   /** Smoothed turn towards the pointer; radians, limited to preserve the face. */
   facing = 0
   /** wind from the pointer, world units / s */
-  gust = { x: 0, y: 0, z: 0, px: 0, py: 0, r: 1 }
+  gust = { x: 0, y: 0, z: 0, px: 0, py: 0, r: 1, active: 0 }
 
   constructor(nx: number, ny: number, W: number, H: number) {
     this.nx = nx
@@ -40,6 +44,20 @@ export class Cloth {
       }
     }
     this.reset()
+    const add = (a: number, b: number, stiffness = 1) => {
+      const rest = Math.hypot(this.pos[a * 3] - this.pos[b * 3], this.pos[a * 3 + 1] - this.pos[b * 3 + 1], this.pos[a * 3 + 2] - this.pos[b * 3 + 2])
+      this.constraints.push({ a, b, rest, du: ((a % nx) - (b % nx)) / (nx - 1), dv: (Math.floor(a / nx) - Math.floor(b / nx)) / (ny - 1), stiffness })
+    }
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      const k = j * nx + i
+      if (i + 1 < nx) add(k, k + 1)
+      if (j + 1 < ny) add(k, k + nx)
+      if (i + 1 < nx && j + 1 < ny) { add(k, k + nx + 1); add(k + 1, k + nx) }
+      // Bending constraints suppress sub-pixel corrugations while leaving the hem flexible.
+      if (i + 2 < nx) add(k, k + 2, 0.45)
+      if (j + 2 < ny) add(k, k + nx * 2, 0.45)
+    }
+    this.restLengths = new Float32Array(this.constraints.length)
   }
 
   reset() {
@@ -59,25 +77,34 @@ export class Cloth {
     const u = i / (this.nx - 1)
     const v = j / (this.ny - 1)
     const t = this.time
-    const bob = Math.sin(t * 0.72) * 0.055
-    const sway = Math.sin(t * 0.43) * 0.035
-    const tilt = Math.sin(t * 0.38) * 0.025
-    // head is narrower than the hem: taper the upper part slightly
-    const taper = 0.86 + 0.14 * (1 - smooth(0.12, 0.9, v))
-    let x = (u - 0.5) * this.W * taper
-    const y = (v - 0.5) * this.H
-    // rotate around head center
-    const ry = y - this.H * 0.3
-    const originalX = x
-    x = originalX * Math.cos(tilt) - ry * Math.sin(tilt)
-    const yy = originalX * Math.sin(tilt) + ry * Math.cos(tilt) + this.H * 0.3
-    const dome = Math.cos((u - 0.5) * Math.PI) * smooth(0.45, 1, v) * 0.32
-    // Broad folds live below the face; the crown stays smooth and legible.
-    const skirt = 1 - smooth(0.15, 0.62, v)
-    const folds = (Math.sin(u * Math.PI * 4 + 0.4) * 0.045 + Math.sin(u * Math.PI * 2 - t * 0.65) * 0.035) * skirt
-    out[0] = this.cx + x * Math.cos(this.facing) + sway
-    out[1] = this.cy + yy + bob
-    out[2] = dome + folds - x * Math.sin(this.facing)
+    const bob = Math.sin(t * 0.64) * 0.045
+    const sway = Math.sin(t * 0.37) * 0.024
+    const tilt = -0.025 + Math.sin(t * 0.31) * 0.013
+    const across = u * 2 - 1
+    const skirt = 1 - smooth(0.12, 0.72, v)
+
+    // The silhouette is geometry, including the arch and scalloped cut edge.
+    // UVs remain rectangular, so the same mesh can unfurl into the DOM spread.
+    const crown = 0.13 + 0.37 * Math.sqrt(Math.max(0, 1 - across * across))
+    const hem = -0.47 + 0.032 * Math.cos(u * Math.PI * 6 + 0.25)
+      + 0.012 * Math.sin(u * Math.PI * 2 + 0.4)
+    const taper = 0.85 + 0.15 * skirt
+    const x = (u - 0.5) * this.W * taper
+    const y = (hem + v * (crown - hem)) * this.H
+    // An elliptical dome opens into asymmetric, deeper folds below the face.
+    const dome = Math.pow(Math.max(0, Math.cos(across * Math.PI / 2)), 0.72)
+      * this.W * (0.13 + 0.13 * smooth(0.3, 0.85, v))
+    const folds = (Math.sin(u * Math.PI * 5.2 + 0.3) * 0.056
+      + Math.sin(u * Math.PI * 9.5 - 0.7) * 0.018) * this.W * skirt
+    const curl = Math.pow(Math.abs(across), 8) * this.W * 0.055 * skirt
+    const wave = Math.sin(u * 7 - v * 5 - t * 0.95) * 0.017 * skirt
+    const z = dome + folds + curl + wave
+    const ry = y - this.H * 0.27
+    const xx = x * Math.cos(tilt) - ry * Math.sin(tilt)
+    out[0] = this.cx + xx * Math.cos(this.facing) + z * Math.sin(this.facing) + sway
+    out[1] = this.cy + x * Math.sin(tilt) + ry * Math.cos(tilt) + this.H * 0.27 + bob
+    out[2] = z * Math.cos(this.facing) - xx * Math.sin(this.facing)
+
   }
 
   /**
@@ -86,17 +113,17 @@ export class Cloth {
    */
   step(dt: number, flat: number, rect: Rect | null, calm: boolean) {
     this.time += calm ? 0 : dt
-    const turn = calm ? 0 : Math.max(-0.16, Math.min(0.16, this.gust.px * 0.045))
+    const turn = calm ? 0 : Math.max(-0.16, Math.min(0.16, (this.gust.px - this.cx) * 0.04 * this.gust.active))
     this.facing += (turn - this.facing) * 0.035
     const { nx, ny, pos, prev, anchor } = this
     const n = nx * ny
     const t = this.time
     const air = (1 - flat) * (calm ? 0 : 1)
-    const g = -3.5 * (1 - flat)
-    const damp = 0.945 - flat * 0.07
+    const g = -0.85 * (1 - flat)
+    const damp = 0.935 - flat * 0.07
     const dt2 = dt * dt
     const G = this.gust
-    const r2 = G.r * G.r
+    const r2 = Math.max(0.001, G.r * G.r)
 
     for (let k = 0; k < n; k++) {
       const i = k % nx
@@ -107,8 +134,8 @@ export class Cloth {
       const o = k * 3
       const x = pos[o], y = pos[o + 1], z = pos[o + 2]
       // idle breeze, stronger towards the hem
-      let ax = Math.sin(t * 1.3 + v * 4.0 + u * 2.0) * 0.22 * free * air
-      let az = (Math.sin(t * 1.7 + u * 6.0 - v * 3.0) * 0.24 + Math.sin(t * 0.7 + u * 3.1) * 0.12) * free * air
+      let ax = Math.sin(t * 1.3 + v * 4.0 + u * 2.0) * 0.10 * free * air
+      let az = (Math.sin(t * 1.7 + u * 6.0 - v * 3.0) * 0.12 + Math.sin(t * 0.7 + u * 3.1) * 0.05) * free * air
       let ay = g * free
       // pointer gust
       const dx = x - G.px, dy = y - G.py
@@ -116,7 +143,7 @@ export class Cloth {
       if (fall > 0.002) {
         ax += G.x * fall * 5
         ay += G.y * fall * 2.5
-        az += G.z * fall * 5
+        az += G.z * fall * 8 - G.active * fall * 1.8
       }
       const vx = (x - prev[o]) * damp
       const vy = (y - prev[o + 1]) * damp
@@ -127,24 +154,20 @@ export class Cloth {
       pos[o + 2] = z + vz + az * dt2
     }
 
-    // rest lengths morph from the ghost sheet to the target rect
+    // Preserve the shell's intrinsic metric. A flat-sheet metric buckles the dome.
     const rw = rect ? rect.w : this.W
     const rh = rect ? rect.h : this.H
-    const restX = ((1 - flat) * this.W + flat * rw) / (nx - 1)
-    const restY = ((1 - flat) * this.H + flat * rh) / (ny - 1)
-    const restD = Math.hypot(restX, restY)
-
-    for (let it = 0; it < 5; it++) {
-      for (let j = 0; j < ny; j++) {
-        for (let i = 0; i < nx; i++) {
-          const k = j * nx + i
-          if (i < nx - 1) this.solve(k, k + 1, restX)
-          if (j < ny - 1) this.solve(k, k + nx, restY)
-          if (i < nx - 1 && j < ny - 1) {
-            this.solve(k, k + nx + 1, restD)
-            this.solve(k + 1, k + nx, restD)
-          }
-        }
+    const key = `${flat}:${rw}:${rh}`
+    if (key !== this.restKey) {
+      this.constraints.forEach((c, i) => {
+        this.restLengths[i] = c.rest * (1 - flat) + Math.hypot(c.du * rw, c.dv * rh) * flat
+      })
+      this.restKey = key
+    }
+    for (let it = 0; it < 4; it++) {
+      for (let i = 0; i < this.constraints.length; i++) {
+        const c = this.constraints[i]
+        this.solve(c.a, c.b, this.restLengths[i], c.stiffness)
       }
     }
 
@@ -157,6 +180,8 @@ export class Cloth {
         const o = k * 3
         this.floatTarget(i, j, tgt)
         let tx = tgt[0], ty = tgt[1], tz = tgt[2]
+        const distance = ((tx - G.px) ** 2 + (ty - G.py) ** 2) / r2
+        tz -= Math.exp(-distance * 1.5) * G.active * air * (0.025 + (1 - anchor[k]) * 0.10)
         if (rect && fe > 0) {
           const u = i / (nx - 1), v = j / (ny - 1)
           tx += (rect.x + u * rect.w - tx) * fe
@@ -164,7 +189,7 @@ export class Cloth {
           tz += (0 - tz) * fe
         }
         // A weak shape-restoring spring prevents the free hem folding across the face.
-        const a = Math.max(0.018, anchor[k], fe) * (fe > 0.995 ? 1 : 0.9)
+        const a = Math.max(0.045, anchor[k], fe) * (fe > 0.995 ? 1 : 0.9)
         if (a <= 0) continue
         pos[o] += (tx - pos[o]) * a
         pos[o + 1] += (ty - pos[o + 1]) * a
@@ -176,12 +201,12 @@ export class Cloth {
     }
   }
 
-  private solve(a: number, b: number, rest: number) {
+  private solve(a: number, b: number, rest: number, stiffness: number) {
     const p = this.pos
     const oa = a * 3, ob = b * 3
     const dx = p[ob] - p[oa], dy = p[ob + 1] - p[oa + 1], dz = p[ob + 2] - p[oa + 2]
     const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6
-    const f = ((d - rest) / d) * 0.5
+    const f = ((d - rest) / d) * 0.5 * stiffness
     // anchored particles barely move; the free hem takes the correction
     const wa = 1 - this.anchor[a] * 0.9, wb = 1 - this.anchor[b] * 0.9
     const s = wa + wb
