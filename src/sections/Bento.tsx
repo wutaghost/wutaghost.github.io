@@ -95,7 +95,7 @@ export function Bento({ gridRef }: { gridRef?: React.Ref<HTMLDivElement> }) {
         </div>
         <div className="card-main">
           <GhostMark className="profile-ghost reveal" />
-          <h1 className="profile-id serif reveal">{profile.id}</h1>
+          <h2 className="profile-id serif reveal">{profile.id}</h2>
           <div className="profile-name reveal">
             <span className="zh">{profile.name.zh}</span>
             <span className="serif en">{profile.name.en}</span>

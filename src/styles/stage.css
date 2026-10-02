@@ -175,16 +175,16 @@
 
 .bento {
   --gap: 14px;
-  --radius: 18px;
+  --radius: 6px;
   --lift: 1;
   position: relative;
   height: 100%;
   display: grid;
   grid-template-columns: 1.15fr 1fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr 0.92fr;
+  grid-template-rows: 0.7fr 1.35fr 0.95fr;
   grid-template-areas:
     'profile profile now time'
-    'profile profile featured featured'
+    'featured featured featured featured'
     'research research contact index';
   gap: var(--gap);
 }

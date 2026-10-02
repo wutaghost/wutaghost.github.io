@@ -114,6 +114,8 @@ export function Stage({ ready }: { ready: boolean }) {
         onToggle: (s) => s.isActive && setPageNo('01'),
       })
 
+      if (reducedMotion) return
+
       if (!staged) {
         gsap.to('.hero-type', {
           y: -60,
@@ -150,7 +152,7 @@ export function Stage({ ready }: { ready: boolean }) {
           trigger: stageRef.current,
           pin: pinRef.current,
           start: 'top top',
-          end: '+=260%',
+          end: '+=210%',
           scrub: 0.9,
         },
       })
@@ -160,7 +162,7 @@ export function Stage({ ready }: { ready: boolean }) {
         .to(st.current, { cut: 1, duration: 0.14 }, 0.44)
         .set(canvasRef.current, { autoAlpha: 0 }, 0.6)
         .set(grid, { autoAlpha: 1 }, 0.6)
-        .to(grid, { '--gap': '14px', '--radius': '18px', '--lift': 1, duration: 0.18, ease: 'power2.out' }, 0.6)
+        .to(grid, { '--gap': '14px', '--radius': '6px', '--lift': 1, duration: 0.18, ease: 'power2.out' }, 0.6)
         .to(cells, { x: (i) => spread[i].x, y: (i) => spread[i].y, rotation: (i) => spread[i].r, duration: 0.09, ease: 'power2.out' }, 0.6)
         .to(cells, { x: 0, y: 0, rotation: 0, duration: 0.13, ease: 'power2.inOut' }, 0.69)
         .to(reveals, { autoAlpha: 1, y: 0, duration: 0.12, stagger: 0.003, ease: 'power2.out' }, 0.72)
@@ -171,10 +173,11 @@ export function Stage({ ready }: { ready: boolean }) {
 
   // ---- intro letters ----
   useEffect(() => {
-    if (!ready) return
+    if (!ready || reducedMotion) return
     const ctx = gsap.context(() => {
       gsap.fromTo('.hero-word span', { yPercent: 105 }, { yPercent: 0, stagger: 0.045, duration: 1.4, ease: 'expo.out' })
       gsap.fromTo('.hero-meta > *', { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, stagger: 0.06, duration: 1, delay: 0.35, ease: 'expo.out' })
+      gsap.fromTo('.hero-edition', { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 1.2, delay: 0.7 })
       gsap.fromTo(canvasRef.current, { autoAlpha: 0, y: 60 }, { autoAlpha: 1, y: 0, duration: 1.6, ease: 'expo.out' })
     }, stageRef)
     return () => ctx.revert()
@@ -184,6 +187,11 @@ export function Stage({ ready }: { ready: boolean }) {
     <>
       <section className={`stage ${staged ? 'is-staged' : ''}`} ref={stageRef} id="top">
         <div className="stage-pin" ref={pinRef}>
+          <div className="hero-light hero-type" aria-hidden />
+          <div className="hero-orbit hero-type" aria-hidden><i /><i /></div>
+          <div className="hero-edition hero-type mono" aria-hidden>
+            <span>Independent inquiry</span><span>Research · Code · Form</span>
+          </div>
           <h1 className="hero-word serif hero-type" aria-label={profile.id}>
             <span className="line-mask">
               {[...profile.id].map((c, i) => (

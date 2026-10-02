@@ -10,6 +10,7 @@ import '@fontsource/noto-serif-sc/600.css'
 import './styles/base.css'
 import './styles/stage.css'
 import './styles/pages.css'
+import './styles/refinement.css'
 import './lib/smooth'
 import { App } from './App'
 

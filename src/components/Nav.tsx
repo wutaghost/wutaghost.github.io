@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Digits, GhostMark, LangToggle, Magnetic } from './ui'
 import { T, S } from '../lib/i18n'
-import { gsap, lenis, scrollTo } from '../lib/smooth'
+import { reducedMotion, gsap, lenis, scrollTo } from '../lib/smooth'
 import { pageTurn } from '../lib/transition'
 import { useI18n } from '../lib/i18n'
 import { profile } from '../data/profile'
@@ -81,6 +81,11 @@ export function Intro({ onDone }: { onDone: () => void }) {
   const [gone, setGone] = useState(false)
   useEffect(() => {
     const el = ref.current!
+    if (reducedMotion) {
+      setGone(true)
+      onDone()
+      return
+    }
     lenis?.stop()
     const word = el.querySelectorAll('.intro-word span')
     const bar = el.querySelector('.intro-bar i')

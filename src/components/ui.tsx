@@ -76,7 +76,7 @@ export function Magnetic({ children, strength = 0.35, className }: { children: R
 /* ---------------- tilt ---------------- */
 
 /** Sets --rx/--ry/--mx/--my on the element for a 3D tilt + sheen. */
-export function useTilt<T extends HTMLElement>(max = 7) {
+export function useTilt<T extends HTMLElement>(max = 3) {
   const ref = useRef<T>(null)
   useEffect(() => {
     if (isTouch || reducedMotion) return
@@ -102,6 +102,7 @@ export function useTilt<T extends HTMLElement>(max = 7) {
     el.addEventListener('pointermove', move)
     el.addEventListener('pointerleave', out)
     return () => {
+      cancelAnimationFrame(raf)
       el.removeEventListener('pointermove', move)
       el.removeEventListener('pointerleave', out)
     }

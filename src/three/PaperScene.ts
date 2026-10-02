@@ -70,13 +70,13 @@ void main() {
   vec3 tex = texture2D(uPaper, vUv).rgb;
   float tooth = noise(vUv * vec2(520.0 * uAspect, 520.0));
   vec3 warm = uCard * vec3(0.985, 0.972, 0.948);
-  vec3 base = warm * tex * (0.975 + 0.04 * tooth);
+  vec3 base = warm * tex * (0.99 + 0.018 * tooth);
 
   // bump from crumples + tooth, perturbing the cloth normal
   float h = crumple(p * 5.5 + uSeed) * 0.9 + tooth * 0.08;
   vec3 n = normalize(vN);
   if (!gl_FrontFacing) n = -n;
-  n = normalize(n - vec3(dFdx(h), dFdy(h), 0.0) * 9.0 * ghost);
+  n = normalize(n - vec3(dFdx(h), dFdy(h), 0.0) * 3.5 * ghost);
 
   // matte wrap lighting, no specular; light passing through thin paper
   vec3 L = normalize(vec3(-0.4, 0.6, 0.75));
@@ -92,7 +92,7 @@ void main() {
 
   // face — follows the pointer; blink squashes it vertically
   vec2 fc = vec2(0.0, 0.66) + uLook * vec2(0.035, 0.024);
-  vec2 fuv = (p - fc) / vec2(0.6, 0.3) + 0.5;
+  vec2 fuv = (p - fc) / vec2(0.48, 0.24) + 0.5;
   if (fuv.x > 0.0 && fuv.x < 1.0 && fuv.y > 0.0 && fuv.y < 1.0) {
     vec4 f = texture2D(uFace, fuv);
     // ink soaks into the fibres a little
