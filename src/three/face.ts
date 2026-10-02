@@ -18,14 +18,14 @@ export const moodLabel: Record<Expression, L10n> = {
   dizzy: { zh: '晕了', en: 'Dizzy' },
 }
 
-const INK = '#141414'
-const RED = '#E5482B'
+const INK = '#302e29'
+const RED = '#b94b35'
 const PAPER = '#FBF9F4'
 export const FACE_W = 512
 export const FACE_H = 256
 const CX = 256
 const EY = 118
-const EX = 80 // half distance between eyes
+const EX = 74 // half distance between eyes
 
 const TAU = Math.PI * 2
 const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v))
@@ -56,12 +56,12 @@ export class Face {
     g.clearRect(0, 0, FACE_W, FACE_H)
 
     // spring "pop" when the mood changes + slow breathing
-    const pop = 1 - 0.28 * Math.exp(-f.k * 6) * Math.cos(f.k * 17)
-    const breathe = Math.sin(f.t * 1.9) * 2.2
+    const pop = 1 - 0.10 * Math.exp(-f.k * 7) * Math.cos(f.k * 13)
+    const breathe = Math.sin(f.t * 1.4) * 0.9
     const wobble = e === 'dizzy' ? Math.sin(f.t * 3.2) * 0.07 : 0
     g.translate(CX, FACE_H / 2 + breathe)
     g.rotate(wobble)
-    g.scale(1.2 * pop, 1.2 * (2 - pop))
+    g.scale(1.08 * pop, 1.08 * (2 - pop))
     g.translate(-CX, -FACE_H / 2)
     g.lineCap = 'round'
     g.lineJoin = 'round'
@@ -70,7 +70,7 @@ export class Face {
 
     let lx = f.look.x, ly = f.look.y
     if (e === 'shy') (lx = 0.75), (ly = -0.55)
-    const ox = lx * 11, oy = -ly * 7
+    const ox = lx * 7, oy = -ly * 5
 
     this[e](f, ox, oy)
   }
@@ -82,7 +82,7 @@ export class Face {
     this.g.ellipse(x, y, Math.max(0.1, rx), Math.max(0.1, ry), rot, 0, TAU)
   }
 
-  /** ink eye with two catch-lights that drift against the gaze */
+  /** Printed ink eye with a single small paper-colored glint */
   private eye(x: number, y: number, rx: number, ry: number, open: number, ox: number, oy: number) {
     const g = this.g
     const h = ry * clamp(open, 0.06)
@@ -98,9 +98,7 @@ export class Face {
     this.ellipse(x, y, rx, h)
     g.fill()
     g.fillStyle = PAPER
-    this.ellipse(x - rx * 0.32 - ox * 0.25, y - h * 0.38 - oy * 0.25, rx * 0.3, rx * 0.3 * open)
-    g.fill()
-    this.ellipse(x + rx * 0.3 - ox * 0.15, y + h * 0.3, rx * 0.13, rx * 0.13 * open)
+    this.ellipse(x - rx * 0.32 - ox * 0.25, y - h * 0.38 - oy * 0.25, rx * 0.16, rx * 0.16 * open)
     g.fill()
     g.fillStyle = INK
   }
@@ -110,7 +108,7 @@ export class Face {
     g.save()
     g.translate(x, y)
     g.rotate(angle * side)
-    g.lineWidth = 6.5
+    g.lineWidth = 5.5
     g.beginPath()
     g.moveTo(-len / 2, 0)
     g.quadraticCurveTo(0, -5, len / 2, 0)
@@ -125,9 +123,9 @@ export class Face {
 
   private blush(alpha: number, hatch = false) {
     const g = this.g
-    g.fillStyle = `rgba(229,72,43,${alpha})`
+    g.fillStyle = `rgba(185,75,53,${alpha * 0.45})`
     for (const s of [-1, 1]) {
-      this.ellipse(CX + s * (EX + 40), EY + 46, 28, 13)
+      this.ellipse(CX + s * (EX + 40), EY + 40, 24, 10)
       g.fill()
       if (hatch) {
         g.strokeStyle = RED
@@ -178,11 +176,10 @@ export class Face {
   /* ---------- moods ---------- */
 
   private calm(f: FaceInput, ox: number, oy: number) {
-    this.brows(ox, oy, 0, 0.06)
-    this.eye(CX - EX + ox, EY + oy, 23, 33, f.open, ox, oy)
-    this.eye(CX + EX + ox, EY + oy, 23, 33, f.open, ox, oy)
-    this.smile(CX + ox * 0.7, EY + 62 + oy * 0.6, 13, 8 + Math.sin(f.t * 1.9) * 1.5)
-    this.blush(0.14)
+    this.eye(CX - EX + ox, EY + oy, 19, 27, f.open, ox, oy)
+    this.eye(CX + EX + ox, EY + oy, 19, 27, f.open, ox, oy)
+    this.smile(CX + ox * 0.7, EY + 53 + oy * 0.6, 12, 7 + Math.sin(f.t * 1.4) * 0.7)
+    this.blush(0.07)
   }
 
   private happy(f: FaceInput, ox: number, oy: number) {
@@ -267,7 +264,7 @@ export class Face {
     const g = this.g
     this.brow(CX - EX + ox * 0.6, EY - 54 + oy * 0.6, 0.12, 1)
     this.brow(CX + EX + ox * 0.6, EY - 42 + oy * 0.6, 0.24, -1)
-    this.eye(CX - EX + ox, EY + oy, 23, 33, f.open, ox, oy)
+    this.eye(CX - EX + ox, EY + oy, 19, 27, f.open, ox, oy)
     // closed eye >
     g.lineWidth = 9
     const x = CX + EX + ox, y = EY + oy
@@ -278,7 +275,7 @@ export class Face {
     g.stroke()
     // smirk with a tongue tip
     const mx = CX + ox * 0.7 + 6, my = EY + 60 + oy * 0.6
-    g.lineWidth = 6.5
+    g.lineWidth = 5.5
     g.beginPath()
     g.moveTo(mx - 22, my + 2)
     g.quadraticCurveTo(mx, my + 14, mx + 24, my - 6)

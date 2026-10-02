@@ -28,7 +28,6 @@ uniform float uCut;
 uniform float uAspect;
 uniform float uTime;
 uniform vec2 uLook;
-uniform float uSeed;
 varying vec2 vUv;
 varying vec3 vN;
 
@@ -38,15 +37,12 @@ float noise(vec2 p) {
   vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
 }
-// ridged noise reads as soft creases in handled paper
-float crumple(vec2 p) {
-  float h = 0.0, a = 0.5;
-  for (int i = 0; i < 4; i++) {
-    h += a * (1.0 - abs(noise(p) * 2.0 - 1.0));
-    p = p * 2.07 + vec2(1.7, 9.2);
-    a *= 0.5;
-  }
-  return h;
+// Two broad, shallow folds. Fine paper grain belongs in albedo, not sharp normals.
+float fold(vec2 uv) {
+  float lower = 1.0 - smoothstep(0.22, 0.65, uv.y);
+  float a = exp(-pow((uv.x - 0.30 - uv.y * 0.08) * 16.0, 2.0));
+  float b = exp(-pow((uv.x - 0.73 + uv.y * 0.06) * 19.0, 2.0));
+  return (a * 0.6 + b * 0.4) * lower;
 }
 
 void main() {
@@ -62,36 +58,43 @@ void main() {
     if (d > 0.0) discard;
     edge = smoothstep(0.0, 0.006, -d);
   }
-  float hem = (0.075 + 0.04 * sin(vUv.x * 18.85 + uTime * 1.2) + 0.018 * sin(vUv.x * 40.0 - uTime * 0.8)) * ghost;
+  float hem = (0.072 + 0.030 * cos(vUv.x * 18.8496 + 0.14 * sin(uTime * 0.65)) + 0.008 * sin(vUv.x * 6.2832 + 0.4)) * ghost;
   if (vUv.y < hem) discard;
-  edge = min(edge, smoothstep(hem, hem + 0.006, vUv.y));
+  edge = min(edge, smoothstep(hem, hem + 0.005, vUv.y));
+  float side = min(vUv.x, 1.0 - vUv.x);
+  edge = min(edge, smoothstep(0.0, 0.005, side));
 
   // paper body: fibres, mottling and fine tooth
   vec3 tex = texture2D(uPaper, vUv).rgb;
   float tooth = noise(vUv * vec2(520.0 * uAspect, 520.0));
-  vec3 warm = uCard * vec3(0.985, 0.972, 0.948);
-  vec3 base = warm * tex * (0.99 + 0.018 * tooth);
+  vec3 warm = uCard * vec3(1.0, 0.991, 0.973);
+  vec3 base = warm * tex * (0.996 + 0.008 * tooth);
 
-  // bump from crumples + tooth, perturbing the cloth normal
-  float h = crumple(p * 5.5 + uSeed) * 0.9 + tooth * 0.08;
+  // UV-space fold derivatives keep relief consistent across display resolutions.
+  float h = fold(vUv);
+  vec2 grad = vec2(fold(vUv + vec2(0.002, 0)) - fold(vUv - vec2(0.002, 0)),
+                   fold(vUv + vec2(0, 0.002)) - fold(vUv - vec2(0, 0.002))) / 0.004;
   vec3 n = normalize(vN);
   if (!gl_FrontFacing) n = -n;
-  n = normalize(n - vec3(dFdx(h), dFdy(h), 0.0) * 3.5 * ghost);
+  n = normalize(n - vec3(grad * 0.045 * ghost, 0.0));
 
-  // matte wrap lighting, no specular; light passing through thin paper
-  vec3 L = normalize(vec3(-0.4, 0.6, 0.75));
+  // A broad studio key, warm transmission and a restrained fibrous edge light.
+  vec3 L = normalize(vec3(-0.55, 0.65, 0.85));
   float wrap = dot(n, L) * 0.5 + 0.5;
-  float diff = wrap * wrap;
-  float trans = max(0.0, -dot(n, L)) * 0.18;
-  vec3 lit = base * (0.74 + 0.34 * diff) + vec3(0.95, 0.82, 0.62) * trans * 0.35;
-  lit *= 0.94 + 0.08 * h;
-  if (!gl_FrontFacing) lit *= vec3(0.9, 0.87, 0.82);
-  lit *= mix(0.78, 1.0, edge);
+  float trans = pow(1.0 - abs(dot(n, L)), 2.0);
+  float rim = pow(1.0 - abs(n.z), 3.0);
+  vec3 lit = base * (0.78 + 0.24 * wrap * wrap);
+  lit += vec3(1.0, 0.89, 0.72) * trans * 0.035;
+  lit += vec3(1.0, 0.97, 0.88) * rim * 0.045;
+  lit *= 1.0 - h * 0.018;
+  if (!gl_FrontFacing) lit *= vec3(0.97, 0.955, 0.925);
+  // The edge is a fine ivory bevel rather than a dark cut-out outline.
+  lit = mix(lit * 0.965 + vec3(0.025, 0.023, 0.018), lit, edge);
 
   vec3 col = mix(lit, uCard, uFlat);
 
   // face — follows the pointer; blink squashes it vertically
-  vec2 fc = vec2(0.0, 0.66) + uLook * vec2(0.035, 0.024);
+  vec2 fc = vec2(-0.005, 0.665) + uLook * vec2(0.016, 0.012);
   vec2 fuv = (p - fc) / vec2(0.48, 0.24) + 0.5;
   if (fuv.x > 0.0 && fuv.x < 1.0 && fuv.y > 0.0 && fuv.y < 1.0) {
     vec4 f = texture2D(uFace, fuv);
@@ -110,6 +113,11 @@ void main() {
 `
 
 function paperTexture() {
+  let seed = 731
+  const random = () => {
+    seed = (seed * 16807) % 2147483647
+    return (seed - 1) / 2147483646
+  }
   const S = 1024
   const c = document.createElement('canvas')
   c.width = c.height = S
@@ -117,39 +125,39 @@ function paperTexture() {
   g.fillStyle = '#fff'
   g.fillRect(0, 0, S, S)
   // low-frequency mottling
-  for (let i = 0; i < 90; i++) {
-    const x = Math.random() * S, y = Math.random() * S, r = 60 + Math.random() * 180
+  for (let i = 0; i < 24; i++) {
+    const x = random() * S, y = random() * S, r = 60 + random() * 180
     const grd = g.createRadialGradient(x, y, 0, x, y, r)
-    grd.addColorStop(0, `rgba(150,128,100,${0.025 + Math.random() * 0.03})`)
+    grd.addColorStop(0, `rgba(150,128,100,${0.007 + random() * 0.01})`)
     grd.addColorStop(1, 'rgba(150,128,100,0)')
     g.fillStyle = grd
     g.fillRect(x - r, y - r, r * 2, r * 2)
   }
   // fibres
-  for (let i = 0; i < 9000; i++) {
-    const x = Math.random() * S, y = Math.random() * S
-    const a = Math.random() * Math.PI
-    const l = 3 + Math.random() * 16
-    g.strokeStyle = Math.random() < 0.85 ? `rgba(110,92,70,${0.04 + Math.random() * 0.07})` : `rgba(255,255,255,${0.3 + Math.random() * 0.4})`
-    g.lineWidth = 0.5 + Math.random() * 0.7
+  for (let i = 0; i < 2400; i++) {
+    const x = random() * S, y = random() * S
+    const a = random() * Math.PI
+    const l = 3 + random() * 16
+    g.strokeStyle = random() < 0.85 ? `rgba(110,92,70,${0.015 + random() * 0.025})` : `rgba(255,255,255,${0.15 + random() * 0.15})`
+    g.lineWidth = 0.5 + random() * 0.7
     g.beginPath()
     g.moveTo(x, y)
     g.quadraticCurveTo(x + Math.cos(a + 0.6) * l * 0.5, y + Math.sin(a + 0.6) * l * 0.5, x + Math.cos(a) * l, y + Math.sin(a) * l)
     g.stroke()
   }
   // specks
-  for (let i = 0; i < 260; i++) {
-    g.fillStyle = `rgba(80,65,50,${0.08 + Math.random() * 0.18})`
-    g.fillRect(Math.random() * S, Math.random() * S, 1 + Math.random() * 1.4, 1 + Math.random() * 1.4)
+  for (let i = 0; i < 65; i++) {
+    g.fillStyle = `rgba(80,65,50,${0.025 + random() * 0.04})`
+    g.fillRect(random() * S, random() * S, 1 + random() * 1.4, 1 + random() * 1.4)
   }
   // a small vermilion seal near the hem
-  g.fillStyle = 'rgba(229,72,43,0.86)'
-  g.fillRect(780, 808, 54, 54)
+  g.fillStyle = 'rgba(185,75,53,0.78)'
+  g.fillRect(766, 786, 43, 49)
   g.fillStyle = 'rgba(251,249,244,0.92)'
-  g.font = '600 30px "Noto Serif SC", serif'
+  g.font = '400 25px "Noto Serif SC", serif'
   g.textAlign = 'center'
   g.textBaseline = 'middle'
-  g.fillText('遂', 807, 836)
+  g.fillText('遂', 787.5, 811)
   const t = new THREE.CanvasTexture(c)
   t.anisotropy = 8
   return t
@@ -233,7 +241,6 @@ export class PaperScene {
         uAspect: { value: 0.78 },
         uTime: { value: 0 },
         uLook: { value: new THREE.Vector2() },
-        uSeed: { value: Math.random() * 50 },
       },
     })
 
@@ -335,12 +342,12 @@ export class PaperScene {
     const G = this.cloth.gust
     if (this.mouse.has) {
       const k = 1 / 60
-      const cap = 4
+      const cap = 2.2
       const vx = Math.max(-cap, Math.min(cap, (w.x - this.mouse.wx) / k))
       const vy = Math.max(-cap, Math.min(cap, (w.y - this.mouse.wy) / k))
       G.x += (vx - G.x) * 0.3
       G.y += (vy - G.y) * 0.3
-      G.z += (-Math.hypot(G.x, G.y) * 0.35 - G.z) * 0.3
+      G.z += (-Math.hypot(G.x, G.y) * 0.18 - G.z) * 0.3
     }
     G.px = w.x
     G.py = w.y
@@ -357,7 +364,7 @@ export class PaperScene {
     const w = this.toWorld(px, py)
     const b = this.cloth.bounds()
     if (w.x < b.minX || w.x > b.maxX || w.y < b.minY || w.y > b.maxY) return false
-    this.cloth.poke(w.x, w.y, 0.018)
+    this.cloth.poke(w.x, w.y, 0.008)
     const now = performance.now()
     this.override = null
     this.blinkAt = now
@@ -367,7 +374,7 @@ export class PaperScene {
 
   private currentMood(now: number): Expression {
     if (this.override && now > this.override.until) this.override = null
-    if (!this.override && now - this.lastPointer > 9000) this.override = { e: 'sleepy', until: Infinity }
+    if (!this.override && now - this.lastPointer > 24000) this.override = { e: 'sleepy', until: Infinity }
     return this.override?.e ?? expressions[this.expression]
   }
 
@@ -415,7 +422,7 @@ export class PaperScene {
 
     this.geo.attributes.position.needsUpdate = true
     this.geo.computeVertexNormals()
-    this.updateBlink(now)
+    if (!calm) this.updateBlink(now)
 
     const u = this.mat.uniforms
     u.uFlat.value = state.flat
@@ -427,14 +434,14 @@ export class PaperScene {
     look.x += (Math.max(-1, Math.min(1, (this.mouse.wx - hx) / 2.5)) - look.x) * 0.12
     look.y += (Math.max(-1, Math.min(1, (this.mouse.wy - hy) / 2.5)) - look.y) * 0.12
 
-    const mood = this.currentMood(now)
+    const mood = calm ? expressions[this.expression] : this.currentMood(now)
     if (mood !== this.shown) {
       this.shown = mood
       this.changedAt = now
       this.onMood?.(mood)
     }
     if (state.flat < 0.999) {
-      this.face.draw(mood, { t: now / 1000, k: (now - this.changedAt) / 1000, look, open: this.open })
+      this.face.draw(mood, { t: calm ? 0 : now / 1000, k: calm ? 10 : (now - this.changedAt) / 1000, look, open: calm ? 1 : this.open })
       this.faceTex.needsUpdate = true
     }
 
@@ -446,6 +453,11 @@ export class PaperScene {
 
   dispose() {
     this.geo.dispose()
+    for (const key of ['uPaper', 'uCrease', 'uFace']) this.mat.uniforms[key].value.dispose()
+    this.shadow.geometry.dispose()
+    const shadowMaterial = this.shadow.material as THREE.MeshBasicMaterial
+    shadowMaterial.map?.dispose()
+    shadowMaterial.dispose()
     this.mat.dispose()
     this.renderer.dispose()
   }

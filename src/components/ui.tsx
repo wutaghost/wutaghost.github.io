@@ -207,14 +207,16 @@ export function GhostMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" className={className} aria-hidden>
       <path
-        d="M14 56V30a18 18 0 0 1 36 0v26l-6-5-6 5-6-5-6 5-6-5z"
+        d="M12 51C14 42 15 35 16 28C17 7 46 6 48 28C49 36 50 44 52 51C49 58 44 58 40 52C36 60 29 60 25 52C20 58 15 58 12 51Z"
         fill="var(--card)"
         stroke="var(--ink)"
-        strokeWidth="2.5"
+        strokeWidth="1.8"
         strokeLinejoin="round"
       />
-      <ellipse className="ghost-eye" cx="26" cy="31" rx="2.6" ry="3.8" fill="var(--ink)" />
-      <ellipse className="ghost-eye" cx="38" cy="31" rx="2.6" ry="3.8" fill="var(--ink)" />
+      <ellipse className="ghost-eye" cx="26" cy="31" rx="2.1" ry="3" fill="var(--ink)" />
+      <ellipse className="ghost-eye" cx="38" cy="31" rx="2.1" ry="3" fill="var(--ink)" />
+      <path d="M30 39Q32 41 34 39" fill="none" stroke="var(--ink)" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M43 44h4v5h-4z" fill="var(--red)" />
     </svg>
   )
 }

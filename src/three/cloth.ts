@@ -19,6 +19,8 @@ export class Cloth {
   cx = 0
   cy = 0
   time = 0
+  /** Smoothed turn towards the pointer; radians, limited to preserve the face. */
+  facing = 0
   /** wind from the pointer, world units / s */
   gust = { x: 0, y: 0, z: 0, px: 0, py: 0, r: 1 }
 
@@ -34,7 +36,7 @@ export class Cloth {
     for (let j = 0; j < ny; j++) {
       for (let i = 0; i < nx; i++) {
         const v = j / (ny - 1)
-        this.anchor[j * nx + i] = smooth(0.52, 0.96, v)
+        this.anchor[j * nx + i] = smooth(0.38, 0.85, v)
       }
     }
     this.reset()
@@ -57,21 +59,25 @@ export class Cloth {
     const u = i / (this.nx - 1)
     const v = j / (this.ny - 1)
     const t = this.time
-    const bob = Math.sin(t * 0.9) * 0.07
-    const sway = Math.sin(t * 0.55) * 0.05
-    const tilt = Math.sin(t * 0.45) * 0.04
+    const bob = Math.sin(t * 0.72) * 0.055
+    const sway = Math.sin(t * 0.43) * 0.035
+    const tilt = Math.sin(t * 0.38) * 0.025
     // head is narrower than the hem: taper the upper part slightly
-    const taper = 0.9 + 0.1 * (1 - v)
+    const taper = 0.86 + 0.14 * (1 - smooth(0.12, 0.9, v))
     let x = (u - 0.5) * this.W * taper
     const y = (v - 0.5) * this.H
     // rotate around head center
     const ry = y - this.H * 0.3
-    x = x * Math.cos(tilt) - ry * Math.sin(tilt)
-    const yy = x * Math.sin(tilt) + ry * Math.cos(tilt) + this.H * 0.3
+    const originalX = x
+    x = originalX * Math.cos(tilt) - ry * Math.sin(tilt)
+    const yy = originalX * Math.sin(tilt) + ry * Math.cos(tilt) + this.H * 0.3
     const dome = Math.cos((u - 0.5) * Math.PI) * smooth(0.45, 1, v) * 0.32
-    out[0] = this.cx + x + sway
+    // Broad folds live below the face; the crown stays smooth and legible.
+    const skirt = 1 - smooth(0.15, 0.62, v)
+    const folds = (Math.sin(u * Math.PI * 4 + 0.4) * 0.045 + Math.sin(u * Math.PI * 2 - t * 0.65) * 0.035) * skirt
+    out[0] = this.cx + x * Math.cos(this.facing) + sway
     out[1] = this.cy + yy + bob
-    out[2] = dome
+    out[2] = dome + folds - x * Math.sin(this.facing)
   }
 
   /**
@@ -79,13 +85,15 @@ export class Cloth {
    * flat: 0 = floating ghost, 1 = lying exactly on `rect`.
    */
   step(dt: number, flat: number, rect: Rect | null, calm: boolean) {
-    this.time += dt
+    this.time += calm ? 0 : dt
+    const turn = calm ? 0 : Math.max(-0.16, Math.min(0.16, this.gust.px * 0.045))
+    this.facing += (turn - this.facing) * 0.035
     const { nx, ny, pos, prev, anchor } = this
     const n = nx * ny
     const t = this.time
-    const air = (1 - flat) * (calm ? 0.25 : 1)
-    const g = -7 * (1 - flat)
-    const damp = 0.975 - flat * 0.1
+    const air = (1 - flat) * (calm ? 0 : 1)
+    const g = -3.5 * (1 - flat)
+    const damp = 0.945 - flat * 0.07
     const dt2 = dt * dt
     const G = this.gust
     const r2 = G.r * G.r
@@ -99,16 +107,16 @@ export class Cloth {
       const o = k * 3
       const x = pos[o], y = pos[o + 1], z = pos[o + 2]
       // idle breeze, stronger towards the hem
-      let ax = Math.sin(t * 1.3 + v * 4.0 + u * 2.0) * 0.4 * free * air
-      let az = (Math.sin(t * 1.7 + u * 6.0 - v * 3.0) * 0.45 + Math.sin(t * 0.7 + u * 3.1) * 0.25) * free * air
+      let ax = Math.sin(t * 1.3 + v * 4.0 + u * 2.0) * 0.22 * free * air
+      let az = (Math.sin(t * 1.7 + u * 6.0 - v * 3.0) * 0.24 + Math.sin(t * 0.7 + u * 3.1) * 0.12) * free * air
       let ay = g * free
       // pointer gust
       const dx = x - G.px, dy = y - G.py
-      const fall = Math.exp(-(dx * dx + dy * dy) / r2) * air
+      const fall = Math.exp(-(dx * dx + dy * dy) / r2) * air * (0.12 + free * 0.88)
       if (fall > 0.002) {
-        ax += G.x * fall * 16
-        ay += G.y * fall * 10
-        az += G.z * fall * 16
+        ax += G.x * fall * 5
+        ay += G.y * fall * 2.5
+        az += G.z * fall * 5
       }
       const vx = (x - prev[o]) * damp
       const vy = (y - prev[o + 1]) * damp
@@ -155,7 +163,8 @@ export class Cloth {
           ty += (rect.y - (1 - v) * rect.h - ty) * fe
           tz += (0 - tz) * fe
         }
-        const a = Math.max(anchor[k], fe) * (fe > 0.995 ? 1 : 0.9)
+        // A weak shape-restoring spring prevents the free hem folding across the face.
+        const a = Math.max(0.018, anchor[k], fe) * (fe > 0.995 ? 1 : 0.9)
         if (a <= 0) continue
         pos[o] += (tx - pos[o]) * a
         pos[o + 1] += (ty - pos[o + 1]) * a
